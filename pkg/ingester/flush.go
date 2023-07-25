@@ -137,8 +137,8 @@ func (i *Ingester) setFlushRate() {
 	for _, q := range i.flushQueues {
 		totalQueueLength += q.Length()
 	}
-	const fudge = 1.05 // aim to finish a little bit before the end of the period
-	flushesPerSecond := float64(totalQueueLength) / i.cfg.FlushCheckPeriod.Seconds() * fudge
+	const jitter = 1.05 // aim to finish a little bit before the end of the period
+	flushesPerSecond := float64(totalQueueLength) / i.cfg.FlushCheckPeriod.Seconds() * jitter
 	// Avoid going very slowly with tiny queues
 	if flushesPerSecond*i.cfg.FlushCheckPeriod.Seconds() < minFlushes {
 		flushesPerSecond = minFlushes / i.cfg.FlushCheckPeriod.Seconds()
