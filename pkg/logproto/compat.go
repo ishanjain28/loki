@@ -63,6 +63,14 @@ func FromLabelAdaptersToMetric(ls []LabelAdapter) model.Metric {
 	return util.LabelsToMetric(FromLabelAdaptersToLabels(ls))
 }
 
+func FromGroupedLabelsToMap(gl GroupedLabels) map[string][]LabelAdapter {
+	return map[string][]LabelAdapter{
+		"stream":             gl.Stream,
+		"structuredMetadata": gl.StructuredMetadata,
+		"parsed":             gl.Parsed,
+	}
+}
+
 // FromMetricsToLabelAdapters converts model.Metric to []LabelAdapter.
 // Don't do this on any performance sensitive paths.
 // The result is sorted.

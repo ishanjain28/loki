@@ -86,7 +86,7 @@ func NewStreams(s logqlmodel.Streams) (loghttp.Streams, error) {
 
 // NewStream constructs a Stream from a logproto.Stream
 func NewStream(s logproto.Stream) (loghttp.Stream, error) {
-	labels, err := NewLabelSet(s.Labels)
+	labels, err := NewLabelSetFromGroups(s.Labels)
 	if err != nil {
 		return loghttp.Stream{}, errors.Wrapf(err, "err while creating labelset for %s", s.Labels)
 	}
@@ -173,14 +173,14 @@ func NewMetric(l labels.Labels) model.Metric {
 	return ret
 }
 
-func EncodeResult(v logqlmodel.Result, s *jsoniter.Stream) error {
+func EncodeResult(v logqlmodel.Result, s *jsoniter.Stream, encodeFlags ...loghttp.EncodingFlag) error {
 	s.WriteObjectStart()
 	s.WriteObjectField("status")
 	s.WriteString("success")
 
 	s.WriteMore()
 	s.WriteObjectField("data")
-	err := encodeData(v, s)
+	err := encodeData(v, s, encodeFlags...)
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func EncodeResult(v logqlmodel.Result, s *jsoniter.Stream) error {
 	return nil
 }
 
-func encodeData(v logqlmodel.Result, s *jsoniter.Stream) error {
+func encodeData(v logqlmodel.Result, s *jsoniter.Stream, encodeFlags ...loghttp.EncodingFlag) error {
 	s.WriteObjectStart()
 
 	s.WriteObjectField("resultType")
@@ -197,7 +197,7 @@ func encodeData(v logqlmodel.Result, s *jsoniter.Stream) error {
 
 	s.WriteMore()
 	s.WriteObjectField("result")
-	err := encodeResult(v.Data, s)
+	err := encodeResult(v.Data, s, encodeFlags...)
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func encodeData(v logqlmodel.Result, s *jsoniter.Stream) error {
 	return nil
 }
 
-func encodeResult(v parser.Value, s *jsoniter.Stream) error {
+func encodeResult(v parser.Value, s *jsoniter.Stream, encodeFlags ...loghttp.EncodingFlag) error {
 	switch v.Type() {
 	case loghttp.ResultTypeStream:
 		result, ok := v.(logqlmodel.Streams)
@@ -220,7 +220,7 @@ func encodeResult(v parser.Value, s *jsoniter.Stream) error {
 			return fmt.Errorf("unexpected type %T for streams", s)
 		}
 
-		return encodeStreams(result, s)
+		return encodeStreams(result, s, encodeFlags...)
 	case loghttp.ResultTypeScalar:
 		scalar, ok := v.(promql.Scalar)
 
@@ -255,7 +255,7 @@ func encodeResult(v parser.Value, s *jsoniter.Stream) error {
 	return nil
 }
 
-func encodeStreams(streams logqlmodel.Streams, s *jsoniter.Stream) error {
+func encodeStreams(streams logqlmodel.Streams, s *jsoniter.Stream, encodeFlags ...loghttp.EncodingFlag) error {
 	s.WriteArrayStart()
 	defer s.WriteArrayEnd()
 
@@ -264,7 +264,7 @@ func encodeStreams(streams logqlmodel.Streams, s *jsoniter.Stream) error {
 			s.WriteMore()
 		}
 
-		err := encodeStream(stream, s)
+		err := encodeStream(stream, s, encodeFlags...)
 		if err != nil {
 			return err
 		}
@@ -273,25 +273,68 @@ func encodeStreams(streams logqlmodel.Streams, s *jsoniter.Stream) error {
 	return nil
 }
 
-func encodeStream(stream logproto.Stream, s *jsoniter.Stream) error {
+func encodeLabels(labels []logproto.LabelAdapter, s *jsoniter.Stream) error {
+	for i, label := range labels {
+		if i > 0 {
+			s.WriteMore()
+		}
+
+		s.WriteObjectField(label.Name)
+		s.WriteString(label.Value)
+	}
+
+	return nil
+}
+
+func encodeGroupedLabels(groupedLabels logproto.GroupedLabels, s *jsoniter.Stream) error {
+	groupsMap := logproto.FromGroupedLabelsToMap(groupedLabels)
+	for group, lbls := range groupsMap {
+		if group == "" {
+			return fmt.Errorf("grouped labels must have a group name")
+		}
+
+		s.WriteObjectField(group)
+		s.WriteObjectStart()
+
+		if err := encodeLabels(lbls, s); err != nil {
+			return err
+		}
+
+		s.WriteObjectEnd()
+		s.Flush()
+
+	}
+
+	return nil
+}
+
+// encodeStream encodes a logproto.Stream to JSON.
+// If the FlagGroupLabels is set, the stream labels are grouped by their group name.
+// Otherwise, the stream labels are written one after the other.
+func encodeStream(stream logproto.Stream, s *jsoniter.Stream, encodeFlags ...loghttp.EncodingFlag) error {
 	s.WriteObjectStart()
 	defer s.WriteObjectEnd()
 
 	s.WriteObjectField("stream")
 	s.WriteObjectStart()
-	labels, err := parser.ParseMetric(stream.Labels)
-	if err != nil {
-		return err
-	}
 
-	for i, l := range labels {
-		if i > 0 {
-			s.WriteMore()
+	if loghttp.EncodingFlagIsSet(encodeFlags, loghttp.FlagGroupLabels) {
+		if err := encodeGroupedLabels(stream.Labels, s); err != nil {
+			return err
 		}
-
-		s.WriteObjectField(l.Name)
-		s.WriteString(l.Value)
+	} else {
+		// If ungrouped, we write all labels from different groups one after the other
+		if err := encodeLabels(stream.Labels.Stream, s); err != nil {
+			return err
+		}
+		if err := encodeLabels(stream.Labels.StructuredMetadata, s); err != nil {
+			return err
+		}
+		if err := encodeLabels(stream.Labels.Parsed, s); err != nil {
+			return err
+		}
 	}
+
 	s.WriteObjectEnd()
 	s.Flush()
 

@@ -7,9 +7,8 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/dustin/go-humanize"
-	"github.com/prometheus/common/model"
-
 	"github.com/grafana/loki/pkg/storage/stores/tsdb/index"
+	"github.com/prometheus/common/model"
 )
 
 // This is the separator define in the Prometheus Labels.Hash function.
@@ -53,8 +52,14 @@ func (id SeriesIdentifier) Hash(b []byte, keysForLabels []string) (uint64, []str
 
 type Streams []Stream
 
-func (xs Streams) Len() int           { return len(xs) }
-func (xs Streams) Swap(i, j int)      { xs[i], xs[j] = xs[j], xs[i] }
+func (xs Streams) Len() int      { return len(xs) }
+func (xs Streams) Swap(i, j int) { xs[i], xs[j] = xs[j], xs[i] }
+
+// TODO: This is needed for sorting streams. Fix it.
+//
+//	Since we no longer use a string, we can:
+//	1. Create a string from the groups and compare them (Less performant).
+//	2. Compare the groups directly (More performant).
 func (xs Streams) Less(i, j int) bool { return xs[i].Labels <= xs[j].Labels }
 
 func (s Series) Len() int           { return len(s.Samples) }

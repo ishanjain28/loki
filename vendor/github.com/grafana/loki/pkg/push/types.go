@@ -11,13 +11,20 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+// TODO: Generate this from the proto definition.
+type GroupedLabels struct {
+	Stream             LabelsAdapter `protobuf:"bytes,1,opt,name=stream,proto3" json:"stream,omitempty"`
+	StructuredMetadata LabelsAdapter `protobuf:"bytes,2,opt,name=structuredMetadata,proto3" json:"structuredMetadata,omitempty"`
+	Parsed             LabelsAdapter `protobuf:"bytes,3,opt,name=parsed,proto3" json:"parsed,omitempty"`
+}
+
 // Stream contains a unique labels set as a string and a set of entries for it.
 // We are not using the proto generated version but this custom one so that we
 // can improve serialization see benchmark.
 type Stream struct {
-	Labels  string  `protobuf:"bytes,1,opt,name=labels,proto3" json:"labels"`
-	Entries []Entry `protobuf:"bytes,2,rep,name=entries,proto3,customtype=EntryAdapter" json:"entries"`
-	Hash    uint64  `protobuf:"varint,3,opt,name=hash,proto3" json:"-"`
+	Labels  GroupedLabels `protobuf:"bytes,1,opt,name=labels,proto3" json:"labels"`
+	Entries []Entry       `protobuf:"bytes,2,rep,name=entries,proto3,customtype=EntryAdapter" json:"entries"`
+	Hash    uint64        `protobuf:"varint,3,opt,name=hash,proto3" json:"-"`
 }
 
 // Entry is a log entry with a timestamp.
