@@ -1596,6 +1596,15 @@ func (e *entryBufferedIterator) Entry() logproto.Entry {
 
 func (e *entryBufferedIterator) Labels() string { return e.currLabels.String() }
 
+func (e *entryBufferedIterator) GroupedLabels() logproto.GroupedLabels {
+	return logproto.GroupedLabels{
+		Stream:             logproto.FromLabelsToLabelAdapters(e.pipeline.BaseLabels().Labels()),
+		StructuredMetadata: logproto.FromLabelsToLabelAdapters(e.currNonIndexedLabels),
+		// TODO: Should contain only parsed labels not in Stream or StructuredMetadata.
+		Parsed: nil,
+	}
+}
+
 func (e *entryBufferedIterator) StreamHash() uint64 { return e.pipeline.BaseLabels().Hash() }
 
 func (e *entryBufferedIterator) Next() bool {
@@ -1653,6 +1662,11 @@ func (e *sampleBufferedIterator) Next() bool {
 	return false
 }
 func (e *sampleBufferedIterator) Labels() string { return e.currLabels.String() }
+
+func (e *sampleBufferedIterator) GroupedLabels() logproto.GroupedLabels {
+	// TODO: Implement this
+	panic("not implemented")
+}
 
 func (e *sampleBufferedIterator) StreamHash() uint64 { return e.extractor.BaseLabels().Hash() }
 

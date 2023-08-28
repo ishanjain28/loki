@@ -20,7 +20,6 @@ import (
 	"github.com/grafana/loki/pkg/analytics"
 	"github.com/grafana/loki/pkg/loghttp"
 	"github.com/grafana/loki/pkg/logproto"
-	"github.com/grafana/loki/pkg/logql/syntax"
 	"github.com/grafana/loki/pkg/util"
 	loki_util "github.com/grafana/loki/pkg/util"
 	"github.com/grafana/loki/pkg/util/unmarshal"
@@ -128,13 +127,13 @@ func ParseRequest(logger log.Logger, userID string, r *http.Request, tenantsRete
 	mostRecentEntry := time.Unix(0, 0)
 
 	for _, s := range req.Streams {
+		// TODO: This will cause problems since in the push the labels will be a string but now we expect an object.
+		// To preserve backwards compatibility we need to somehow translate the string to the object.
+		// Alternatively, we can keep the labels as a string and also add a separate field for the grouped labels.
 		streamLabelsSize += int64(len(s.Labels))
 		var retentionHours string
 		if tenantsRetention != nil {
-			lbs, err := syntax.ParseLabels(s.Labels)
-			if err != nil {
-				return nil, fmt.Errorf("couldn't parse labels: %w", err)
-			}
+			lbs := logproto.FromLabelAdaptersToLabels(logproto.FromGroupedLabelsToUngroupedLabels(s.Labels))
 			retentionHours = fmt.Sprintf("%d", int64(math.Floor(tenantsRetention.RetentionPeriodFor(userID, lbs).Hours())))
 		}
 		for _, e := range s.Entries {

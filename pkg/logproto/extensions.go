@@ -60,7 +60,12 @@ func (xs Streams) Swap(i, j int) { xs[i], xs[j] = xs[j], xs[i] }
 //	Since we no longer use a string, we can:
 //	1. Create a string from the groups and compare them (Less performant).
 //	2. Compare the groups directly (More performant).
-func (xs Streams) Less(i, j int) bool { return xs[i].Labels <= xs[j].Labels }
+func (xs Streams) Less(i, j int) bool {
+	// TODO: Fix this. It's quite innefcient because we are creating a string from the groups
+	// whereas we used to have the string already.
+	// return FromLabelAdaptersToLabels(FromGroupedLabelsToUngroupedLabels(xs[i].Labels)).String() <= FromLabelAdaptersToLabels(FromGroupedLabelsToUngroupedLabels(xs[j].Labels)).String()
+	return xs[i].Labels <= xs[j].Labels
+}
 
 func (s Series) Len() int           { return len(s.Samples) }
 func (s Series) Swap(i, j int)      { s.Samples[i], s.Samples[j] = s.Samples[j], s.Samples[i] }

@@ -44,6 +44,30 @@ func (l labelsResult) Hash() uint64 {
 	return l.h
 }
 
+type GroupedLabelsResults interface {
+	Stream() LabelsResult
+	StructuredMetadata() LabelsResult
+	Parsed() LabelsResult
+}
+
+type groupedLabelsResults struct {
+	stream             LabelsResult
+	structuredMetadata LabelsResult
+	parsed             LabelsResult
+}
+
+func (g groupedLabelsResults) Stream() LabelsResult {
+	return g.stream
+}
+
+func (g groupedLabelsResults) StructuredMetadata() LabelsResult {
+	return g.structuredMetadata
+}
+
+func (g groupedLabelsResults) Parsed() LabelsResult {
+	return g.parsed
+}
+
 type hasher struct {
 	buf []byte // buffer for computing hash without bytes slice allocation.
 }
@@ -134,6 +158,30 @@ func (b *BaseLabelsBuilder) ForLabels(lbs labels.Labels, hash uint64) *LabelsBui
 		BaseLabelsBuilder: b,
 	}
 	return res
+}
+
+type GroupedLabelsBuilder struct {
+	Stream             *LabelsBuilder
+	StructuredMetadata *LabelsBuilder
+	Parsed             *LabelsBuilder
+}
+
+func (g *GroupedLabelsBuilder) Reset() {
+	g.Stream.Reset()
+	g.StructuredMetadata.Reset()
+	g.Parsed.Reset()
+}
+
+// ForLabelsGrouped returns a grouped labels builder for a given labels set as base.
+// The base builder is assigned to the stream group.
+// TODO:
+//   - Avoid computing the hash?
+func (b *BaseLabelsBuilder) ForLabelsGrouped(lbs labels.Labels, hash uint64) *GroupedLabelsBuilder {
+	return &GroupedLabelsBuilder{
+		Stream:             b.ForLabels(lbs, hash),
+		StructuredMetadata: b.ForLabels(labels.Labels{}, b.Hash(labels.Labels{})),
+		Parsed:             b.ForLabels(labels.Labels{}, b.Hash(labels.Labels{})),
+	}
 }
 
 // Reset clears all current state for the builder.

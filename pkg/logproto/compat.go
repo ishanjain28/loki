@@ -71,6 +71,15 @@ func FromGroupedLabelsToMap(gl GroupedLabels) map[string][]LabelAdapter {
 	}
 }
 
+func FromGroupedLabelsToUngroupedLabels(gl GroupedLabels) []LabelAdapter {
+	size := len(gl.Stream) + len(gl.StructuredMetadata) + len(gl.Parsed)
+	ret := make([]LabelAdapter, 0, size)
+	ret = append(ret, gl.Stream...)
+	ret = append(ret, gl.StructuredMetadata...)
+	ret = append(ret, gl.Parsed...)
+	return ret
+}
+
 // FromMetricsToLabelAdapters converts model.Metric to []LabelAdapter.
 // Don't do this on any performance sensitive paths.
 // The result is sorted.
