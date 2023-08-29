@@ -26,7 +26,7 @@ func NewDropLabels(dl []DropLabel) *DropLabels {
 	return &DropLabels{dropLabels: dl}
 }
 
-func (dl *DropLabels) Process(_ int64, line []byte, lbls *GroupedLabelsBuilder) ([]byte, bool) {
+func (dl *DropLabels) Process(_ int64, line []byte, lbls *LabelsBuilder) ([]byte, bool) {
 	for _, dropLabel := range dl.dropLabels {
 		if dropLabel.Matcher != nil {
 			dropLabelMatches(dropLabel.Matcher, lbls)
@@ -48,7 +48,7 @@ func isErrorDetailsLabel(name string) bool {
 	return name == logqlmodel.ErrorDetailsLabel
 }
 
-func dropLabelNames(name string, lbls *GroupedLabelsBuilder) {
+func dropLabelNames(name string, lbls *LabelsBuilder) {
 	if isErrorLabel(name) {
 		lbls.ResetError()
 		return
@@ -57,12 +57,12 @@ func dropLabelNames(name string, lbls *GroupedLabelsBuilder) {
 		lbls.ResetErrorDetails()
 		return
 	}
-	if _, ok := lbls.Get(name); ok {
+	if _, _, ok := lbls.Get(name); ok {
 		lbls.Del(name)
 	}
 }
 
-func dropLabelMatches(matcher *labels.Matcher, lbls *GroupedLabelsBuilder) {
+func dropLabelMatches(matcher *labels.Matcher, lbls *LabelsBuilder) {
 	var value string
 	name := matcher.Name
 	if isErrorLabel(name) {
@@ -79,7 +79,7 @@ func dropLabelMatches(matcher *labels.Matcher, lbls *GroupedLabelsBuilder) {
 		}
 		return
 	}
-	value, _ = lbls.Get(name)
+	value, _, _ = lbls.Get(name)
 	if matcher.Matches(value) {
 		lbls.Del(name)
 	}

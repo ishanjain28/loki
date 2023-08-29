@@ -23,15 +23,15 @@ type StreamPipeline interface {
 	BaseLabels() LabelsResult
 	// Process processes a log line and returns the transformed line and the labels.
 	// The buffer returned for the log line can be reused on subsequent calls to Process and therefore must be copied.
-	Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) (resultLine []byte, resultLabels GroupedLabelsResult, matches bool)
-	ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (resultLine string, resultLabels LabelsResult, matches bool)
+	Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) (resultLine []byte, resultLabels CategorizedLabelsResult, matches bool)
+	ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (resultLine string, resultLabels CategorizedLabelsResult, matches bool)
 }
 
 // Stage is a single step of a Pipeline.
 // A Stage implementation should never mutate the line passed, but instead either
 // return the line unchanged or allocate a new line.
 type Stage interface {
-	Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool)
+	Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool)
 	RequiredLabelNames() []string
 }
 
@@ -59,7 +59,7 @@ func (n *noopPipeline) ForStream(labels labels.Labels) StreamPipeline {
 	}
 	n.mu.RUnlock()
 
-	sp := &noopStreamPipeline{n.baseBuilder.ForLabelsGrouped(labels, h)}
+	sp := &noopStreamPipeline{n.baseBuilder.ForLabels(labels, h)}
 
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -84,36 +84,35 @@ func IsNoopPipeline(p Pipeline) bool {
 }
 
 type noopStreamPipeline struct {
-	builder *GroupedLabelsBuilder
+	builder *LabelsBuilder
 }
 
-func (n noopStreamPipeline) Process(_ int64, line []byte, nonIndexedLabels ...labels.Label) ([]byte, GroupedLabelsResult, bool) {
+func (n noopStreamPipeline) Process(_ int64, line []byte, nonIndexedLabels ...labels.Label) ([]byte, CategorizedLabelsResult, bool) {
 	n.builder.Reset()
-	n.builder.StructuredMetadata.Add(nonIndexedLabels...)
-	return line, n.builder.GroupedLabelsResult(), true
+	n.builder.Add(StructuredMetadataLabel, nonIndexedLabels...)
+	return line, n.builder.CategorizedLabelsResult(), true
 }
 
-func (n noopStreamPipeline) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (string, LabelsResult, bool) {
+func (n noopStreamPipeline) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (string, CategorizedLabelsResult, bool) {
 	_, lr, ok := n.Process(ts, unsafeGetBytes(line), nonIndexedLabels...)
-	// TODO: Support in metric queries
-	return line, lr.Stream(), ok
+	return line, lr, ok
 }
 
-func (n noopStreamPipeline) BaseLabels() LabelsResult { return n.builder.Stream.LabelsResult() }
+func (n noopStreamPipeline) BaseLabels() LabelsResult { return n.builder.currentResult }
 
 type noopStage struct{}
 
-func (noopStage) Process(_ int64, line []byte, _ *GroupedLabelsBuilder) ([]byte, bool) {
+func (noopStage) Process(_ int64, line []byte, _ *LabelsBuilder) ([]byte, bool) {
 	return line, true
 }
 func (noopStage) RequiredLabelNames() []string { return []string{} }
 
 type StageFunc struct {
-	process        func(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool)
+	process        func(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool)
 	requiredLabels []string
 }
 
-func (fn StageFunc) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+func (fn StageFunc) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	return fn.process(ts, line, lbs)
 }
 
@@ -166,10 +165,10 @@ func NewPipeline(stages []Stage) Pipeline {
 
 type streamPipeline struct {
 	stages  []Stage
-	builder *GroupedLabelsBuilder
+	builder *LabelsBuilder
 }
 
-func NewStreamPipeline(stages []Stage, labelsBuilder *GroupedLabelsBuilder) StreamPipeline {
+func NewStreamPipeline(stages []Stage, labelsBuilder *LabelsBuilder) StreamPipeline {
 	return &streamPipeline{stages, labelsBuilder}
 }
 
@@ -183,7 +182,7 @@ func (p *pipeline) ForStream(labels labels.Labels) StreamPipeline {
 	}
 	p.mu.RUnlock()
 
-	res := NewStreamPipeline(p.stages, p.baseBuilder.ForLabelsGrouped(labels, hash))
+	res := NewStreamPipeline(p.stages, p.baseBuilder.ForLabels(labels, hash))
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -202,10 +201,10 @@ func (p *pipeline) Reset() {
 	}
 }
 
-func (p *streamPipeline) Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) ([]byte, GroupedLabelsResult, bool) {
+func (p *streamPipeline) Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) ([]byte, CategorizedLabelsResult, bool) {
 	var ok bool
 	p.builder.Reset()
-	p.builder.StructuredMetadata.Add(nonIndexedLabels...)
+	p.builder.Add(StructuredMetadataLabel, nonIndexedLabels...)
 
 	for _, s := range p.stages {
 		line, ok = s.Process(ts, line, p.builder)
@@ -213,18 +212,17 @@ func (p *streamPipeline) Process(ts int64, line []byte, nonIndexedLabels ...labe
 			return nil, nil, false
 		}
 	}
-	return line, p.builder.GroupedLabelsResult(), true
+	return line, p.builder.CategorizedLabelsResult(), true
 }
 
-func (p *streamPipeline) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (string, LabelsResult, bool) {
+func (p *streamPipeline) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (string, CategorizedLabelsResult, bool) {
 	// Stages only read from the line.
 	lb, lr, ok := p.Process(ts, unsafeGetBytes(line), nonIndexedLabels...)
 	// but the returned line needs to be copied.
-	// TODO: return grouped labels
-	return string(lb), lr.Stream(), ok
+	return string(lb), lr, ok
 }
 
-func (p *streamPipeline) BaseLabels() LabelsResult { return p.builder.Stream.LabelsResult() }
+func (p *streamPipeline) BaseLabels() LabelsResult { return p.builder.currentResult }
 
 // PipelineFilter contains a set of matchers and a pipeline that, when matched,
 // causes an entry from a log stream to be skipped. Matching entries must also
@@ -298,7 +296,7 @@ func (sp *filteringStreamPipeline) BaseLabels() LabelsResult {
 	return sp.pipeline.BaseLabels()
 }
 
-func (sp *filteringStreamPipeline) Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) ([]byte, GroupedLabelsResult, bool) {
+func (sp *filteringStreamPipeline) Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) ([]byte, CategorizedLabelsResult, bool) {
 	for _, filter := range sp.filters {
 		if ts < filter.start || ts > filter.end {
 			continue
@@ -313,7 +311,7 @@ func (sp *filteringStreamPipeline) Process(ts int64, line []byte, nonIndexedLabe
 	return sp.pipeline.Process(ts, line)
 }
 
-func (sp *filteringStreamPipeline) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (string, LabelsResult, bool) {
+func (sp *filteringStreamPipeline) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (string, CategorizedLabelsResult, bool) {
 	for _, filter := range sp.filters {
 		if ts < filter.start || ts > filter.end {
 			continue
@@ -338,7 +336,7 @@ func ReduceStages(stages []Stage) Stage {
 		requiredLabelNames = append(requiredLabelNames, s.RequiredLabelNames()...)
 	}
 	return StageFunc{
-		process: func(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+		process: func(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 			var ok bool
 			for _, p := range stages {
 				line, ok = p.Process(ts, line, lbs)

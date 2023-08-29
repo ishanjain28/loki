@@ -34,6 +34,7 @@ type SampleExtractor interface {
 // A StreamSampleExtractor never mutate the received line.
 type StreamSampleExtractor interface {
 	BaseLabels() LabelsResult
+	// TODO(salvacorts): Support categories in metric extraction.
 	Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) (float64, LabelsResult, bool)
 	ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (float64, LabelsResult, bool)
 }
@@ -68,7 +69,7 @@ func (l *lineSampleExtractor) ForStream(labels labels.Labels) StreamSampleExtrac
 	res := &streamLineSampleExtractor{
 		Stage:         l.Stage,
 		LineExtractor: l.LineExtractor,
-		builder:       l.baseBuilder.ForLabelsGrouped(labels, hash),
+		builder:       l.baseBuilder.ForLabels(labels, hash),
 	}
 	l.streamExtractors[hash] = res
 	return res
@@ -77,23 +78,23 @@ func (l *lineSampleExtractor) ForStream(labels labels.Labels) StreamSampleExtrac
 type streamLineSampleExtractor struct {
 	Stage
 	LineExtractor
-	builder *GroupedLabelsBuilder
+	builder *LabelsBuilder
 }
 
 func (l *streamLineSampleExtractor) Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) (float64, LabelsResult, bool) {
 	l.builder.Reset()
-	l.builder.StructuredMetadata.Add(nonIndexedLabels...)
+	l.builder.Add(StructuredMetadataLabel, nonIndexedLabels...)
 
 	// short circuit.
 	if l.Stage == NoopStage {
-		return l.LineExtractor(line), l.builder.Stream.LabelsResult(), true
+		return l.LineExtractor(line), l.builder.GroupedLabels(), true
 	}
 
 	line, ok := l.Stage.Process(ts, line, l.builder)
 	if !ok {
 		return 0, nil, false
 	}
-	return l.LineExtractor(line), l.builder.Stream.LabelsResult(), true
+	return l.LineExtractor(line), l.builder.GroupedLabels(), true
 }
 
 func (l *streamLineSampleExtractor) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (float64, LabelsResult, bool) {
@@ -101,7 +102,7 @@ func (l *streamLineSampleExtractor) ProcessString(ts int64, line string, nonInde
 	return l.Process(ts, unsafeGetBytes(line), nonIndexedLabels...)
 }
 
-func (l *streamLineSampleExtractor) BaseLabels() LabelsResult { return l.builder.Stream.LabelsResult() }
+func (l *streamLineSampleExtractor) BaseLabels() LabelsResult { return l.builder.currentResult }
 
 type convertionFn func(value string) (float64, error)
 
@@ -154,7 +155,7 @@ func LabelExtractorWithStages(
 
 type streamLabelSampleExtractor struct {
 	*labelSampleExtractor
-	builder *GroupedLabelsBuilder
+	builder *LabelsBuilder
 }
 
 func (l *labelSampleExtractor) ForStream(labels labels.Labels) StreamSampleExtractor {
@@ -165,7 +166,7 @@ func (l *labelSampleExtractor) ForStream(labels labels.Labels) StreamSampleExtra
 
 	res := &streamLabelSampleExtractor{
 		labelSampleExtractor: l,
-		builder:              l.baseBuilder.ForLabelsGrouped(labels, hash),
+		builder:              l.baseBuilder.ForLabels(labels, hash),
 	}
 	l.streamExtractors[hash] = res
 	return res
@@ -174,14 +175,14 @@ func (l *labelSampleExtractor) ForStream(labels labels.Labels) StreamSampleExtra
 func (l *streamLabelSampleExtractor) Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) (float64, LabelsResult, bool) {
 	// Apply the pipeline first.
 	l.builder.Reset()
-	l.builder.StructuredMetadata.Add(nonIndexedLabels...)
+	l.builder.Add(StructuredMetadataLabel, nonIndexedLabels...)
 	line, ok := l.preStage.Process(ts, line, l.builder)
 	if !ok {
 		return 0, nil, false
 	}
 	// convert the label value.
 	var v float64
-	stringValue, _ := l.builder.Get(l.labelName)
+	stringValue, _, _ := l.builder.Get(l.labelName)
 	if stringValue == "" {
 		// NOTE: It's totally fine for log line to not have this particular label.
 		// See Issue: https://github.com/grafana/loki/issues/6713
@@ -199,7 +200,7 @@ func (l *streamLabelSampleExtractor) Process(ts int64, line []byte, nonIndexedLa
 	if _, ok = l.postFilter.Process(ts, line, l.builder); !ok {
 		return 0, nil, false
 	}
-	return v, l.builder.Stream.LabelsResult(), true
+	return v, l.builder.GroupedLabels(), true
 }
 
 func (l *streamLabelSampleExtractor) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (float64, LabelsResult, bool) {
@@ -208,7 +209,7 @@ func (l *streamLabelSampleExtractor) ProcessString(ts int64, line string, nonInd
 }
 
 func (l *streamLabelSampleExtractor) BaseLabels() LabelsResult {
-	return l.builder.Stream.LabelsResult()
+	return l.builder.currentResult
 }
 
 // NewFilteringSampleExtractor creates a sample extractor where entries from

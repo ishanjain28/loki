@@ -60,7 +60,7 @@ func (f *IPLineFilter) ToStage() Stage {
 }
 
 // `Process` implements `Stage` interface
-func (f *IPLineFilter) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+func (f *IPLineFilter) Process(_ int64, line []byte, _ *LabelsBuilder) ([]byte, bool) {
 	return line, f.filterTy(line, f.ty)
 }
 
@@ -104,7 +104,7 @@ func NewIPLabelFilter(pattern string, label string, ty LabelFilterType) *IPLabel
 }
 
 // `Process` implements `Stage` interface
-func (f *IPLabelFilter) Process(_ int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+func (f *IPLabelFilter) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	return line, f.filterTy(line, f.ty, lbs)
 }
 
@@ -119,12 +119,12 @@ func (f *IPLabelFilter) PatternError() error {
 	return f.patError
 }
 
-func (f *IPLabelFilter) filterTy(_ []byte, ty LabelFilterType, lbs *GroupedLabelsBuilder) bool {
+func (f *IPLabelFilter) filterTy(_ []byte, ty LabelFilterType, lbs *LabelsBuilder) bool {
 	if lbs.HasErr() {
 		// why `true`?. if there's an error only the string matchers can filter out.
 		return true
 	}
-	input, ok := lbs.Get(f.label)
+	input, _, ok := lbs.Get(f.label)
 	if !ok {
 		// we have not found the label.
 		return false

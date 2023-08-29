@@ -43,7 +43,7 @@ var (
 
 type JSONParser struct {
 	prefixBuffer []byte // buffer used to build json keys
-	lbs          *GroupedLabelsBuilder
+	lbs          *LabelsBuilder
 
 	keys        internedStringSet
 	parserHints ParserHint
@@ -57,7 +57,7 @@ func NewJSONParser() *JSONParser {
 	}
 }
 
-func (j *JSONParser) Process(_ int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+func (j *JSONParser) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	parserHints := lbs.ParserLabelHints()
 	if parserHints.NoLabels() {
 		return line, true
@@ -136,7 +136,7 @@ func (j *JSONParser) parseLabelValue(key, value []byte, dataType jsonparser.Valu
 		if !ok {
 			return nil
 		}
-		j.lbs.Set(key, readValue(value, dataType))
+		j.lbs.Set(ParsedLabel, key, readValue(value, dataType))
 		if !j.parserHints.ShouldContinueParsingLine(key, j.lbs) {
 			return errLabelDoesNotMatch
 		}
@@ -166,7 +166,7 @@ func (j *JSONParser) parseLabelValue(key, value []byte, dataType jsonparser.Valu
 		return nil
 	}
 
-	j.lbs.Set(keyString, readValue(value, dataType))
+	j.lbs.Set(ParsedLabel, keyString, readValue(value, dataType))
 	if !j.parserHints.ShouldContinueParsingLine(keyString, j.lbs) {
 		return errLabelDoesNotMatch
 	}
@@ -250,7 +250,7 @@ func NewRegexpParser(re string) (*RegexpParser, error) {
 	}, nil
 }
 
-func (r *RegexpParser) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+func (r *RegexpParser) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	parserHints := lbs.ParserLabelHints()
 	for i, value := range r.regex.FindSubmatch(line) {
 		if name, ok := r.nameIndex[i]; ok {
@@ -272,7 +272,7 @@ func (r *RegexpParser) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder)
 				continue
 			}
 
-			lbs.Set(key, string(value))
+			lbs.Set(ParsedLabel, key, string(value))
 			if !parserHints.ShouldContinueParsingLine(key, lbs) {
 				return line, false
 			}
@@ -301,7 +301,7 @@ func NewLogfmtParser(strict, keepEmpty bool) *LogfmtParser {
 	}
 }
 
-func (l *LogfmtParser) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+func (l *LogfmtParser) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	parserHints := lbs.ParserLabelHints()
 	if parserHints.NoLabels() {
 		return line, true
@@ -348,7 +348,7 @@ func (l *LogfmtParser) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder)
 			continue
 		}
 
-		lbs.Set(key, string(val))
+		lbs.Set(ParsedLabel, key, string(val))
 		if !parserHints.ShouldContinueParsingLine(key, lbs) {
 			return line, false
 		}
@@ -393,7 +393,7 @@ func NewPatternParser(pn string) (*PatternParser, error) {
 	}, nil
 }
 
-func (l *PatternParser) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+func (l *PatternParser) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	parserHints := lbs.ParserLabelHints()
 	if parserHints.NoLabels() {
 		return line, true
@@ -410,7 +410,7 @@ func (l *PatternParser) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder
 			continue
 		}
 
-		lbs.Set(name, string(m))
+		lbs.Set(ParsedLabel, name, string(m))
 		if !parserHints.ShouldContinueParsingLine(name, lbs) {
 			return line, false
 		}
@@ -452,7 +452,7 @@ func NewLogfmtExpressionParser(expressions []LabelExtractionExpr, strict bool) (
 	}, nil
 }
 
-func (l *LogfmtExpressionParser) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+func (l *LogfmtExpressionParser) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	// If there are no expressions, extract common labels
 	// and add the suffix "_extracted"
 	if len(l.expressions) == 0 {
@@ -469,7 +469,7 @@ func (l *LogfmtExpressionParser) Process(ts int64, line []byte, lbs *GroupedLabe
 	for id, paths := range l.expressions {
 		keys[id] = fmt.Sprintf("%v", paths...)
 		if !lbs.BaseHas(id) {
-			lbs.Set(id, "")
+			lbs.Set(ParsedLabel, id, "")
 		}
 	}
 
@@ -523,7 +523,7 @@ func (l *LogfmtExpressionParser) Process(ts int64, line []byte, lbs *GroupedLabe
 				}
 			}
 
-			lbs.Set(key, string(val))
+			lbs.Set(ParsedLabel, key, string(val))
 
 			if lbs.ParserLabelHints().AllRequiredExtracted() {
 				break
@@ -583,7 +583,7 @@ func pathsToString(paths []interface{}) []string {
 	return stingPaths
 }
 
-func (j *JSONExpressionParser) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+func (j *JSONExpressionParser) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	if len(line) == 0 || lbs.ParserLabelHints().NoLabels() {
 		return line, true
 	}
@@ -613,9 +613,9 @@ func (j *JSONExpressionParser) Process(ts int64, line []byte, lbs *GroupedLabels
 
 		switch typ {
 		case jsonparser.Null:
-			lbs.Set(key, "")
+			lbs.Set(ParsedLabel, key, "")
 		default:
-			lbs.Set(key, unescapeJSONString(data))
+			lbs.Set(ParsedLabel, key, unescapeJSONString(data))
 		}
 
 		matches++
@@ -624,8 +624,8 @@ func (j *JSONExpressionParser) Process(ts int64, line []byte, lbs *GroupedLabels
 	// Ensure there's a label for every value
 	if matches < len(j.ids) {
 		for _, id := range j.ids {
-			if _, ok := lbs.Get(id); !ok {
-				lbs.Set(id, "")
+			if _, _, ok := lbs.Get(id); !ok {
+				lbs.Set(ParsedLabel, id, "")
 			}
 		}
 	}
@@ -663,7 +663,7 @@ func NewUnpackParser() *UnpackParser {
 
 func (UnpackParser) RequiredLabelNames() []string { return []string{} }
 
-func (u *UnpackParser) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
+func (u *UnpackParser) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	if len(line) == 0 || lbs.ParserLabelHints().NoLabels() {
 		return line, true
 	}
@@ -687,7 +687,7 @@ func (u *UnpackParser) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder)
 	return entry, true
 }
 
-func addErrLabel(msg string, err error, lbs *GroupedLabelsBuilder) {
+func addErrLabel(msg string, err error, lbs *LabelsBuilder) {
 	lbs.SetErr(msg)
 
 	if err != nil {
@@ -695,11 +695,11 @@ func addErrLabel(msg string, err error, lbs *GroupedLabelsBuilder) {
 	}
 
 	if lbs.ParserLabelHints().PreserveError() {
-		lbs.Parsed.Set(logqlmodel.PreserveErrorLabel, "true")
+		lbs.Set(ParsedLabel, logqlmodel.PreserveErrorLabel, "true")
 	}
 }
 
-func (u *UnpackParser) unpack(entry []byte, lbs *GroupedLabelsBuilder) ([]byte, error) {
+func (u *UnpackParser) unpack(entry []byte, lbs *LabelsBuilder) ([]byte, error) {
 	var isPacked bool
 	err := jsonparser.ObjectEach(entry, func(key, value []byte, typ jsonparser.ValueType, _ int) error {
 		switch typ {
@@ -746,7 +746,7 @@ func (u *UnpackParser) unpack(entry []byte, lbs *GroupedLabelsBuilder) ([]byte, 
 	// flush the buffer if we found a packed entry.
 	if isPacked {
 		for i := 0; i < len(u.lbsBuffer); i = i + 2 {
-			lbs.Parsed.Set(u.lbsBuffer[i], u.lbsBuffer[i+1])
+			lbs.Set(ParsedLabel, u.lbsBuffer[i], u.lbsBuffer[i+1])
 			if !lbs.ParserLabelHints().ShouldContinueParsingLine(u.lbsBuffer[i], lbs) {
 				return entry, errLabelDoesNotMatch
 			}
