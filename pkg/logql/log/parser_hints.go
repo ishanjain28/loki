@@ -45,7 +45,7 @@ type ParserHint interface {
 
 	// ShouldContinueParsingLine returns true when there is no label matcher for the
 	// provided label or the passed label and value match what's in the pipeline
-	ShouldContinueParsingLine(labelName string, lbs *LabelsBuilder) bool
+	ShouldContinueParsingLine(labelName string, lbs *GroupedLabelsBuilder) bool
 }
 
 type Hints struct {
@@ -118,7 +118,7 @@ func (p *Hints) PreserveError() bool {
 	return p.shouldPreserveError
 }
 
-func (p *Hints) ShouldContinueParsingLine(labelName string, lbs *LabelsBuilder) bool {
+func (p *Hints) ShouldContinueParsingLine(labelName string, lbs *GroupedLabelsBuilder) bool {
 	for i := 0; i < len(p.labelNames); i++ {
 		if p.labelNames[i] == labelName {
 			_, matches := p.labelFilters[i].Process(0, nil, lbs)

@@ -248,11 +248,11 @@ func (p *stubStreamPipeline) BaseLabels() LabelsResult {
 	return nil
 }
 
-func (p *stubStreamPipeline) Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) ([]byte, GroupedLabelsResults, bool) {
+func (p *stubStreamPipeline) Process(ts int64, line []byte, nonIndexedLabels ...labels.Label) ([]byte, GroupedLabelsResult, bool) {
 	return nil, nil, true
 }
 
-func (p *stubStreamPipeline) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (string, GroupedLabelsResults, bool) {
+func (p *stubStreamPipeline) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (string, GroupedLabelsResult, bool) {
 	return "", nil, true
 }
 

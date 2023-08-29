@@ -231,7 +231,7 @@ func (p *fakeParseHints) Reset() {
 func (p *fakeParseHints) PreserveError() bool {
 	return false
 }
-func (p *fakeParseHints) ShouldContinueParsingLine(_ string, _ *LabelsBuilder) bool {
+func (p *fakeParseHints) ShouldContinueParsingLine(labelName string, lbs *GroupedLabelsBuilder) bool {
 	return p.keepGoing
 }
 

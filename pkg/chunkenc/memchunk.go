@@ -1587,21 +1587,22 @@ type entryBufferedIterator struct {
 	iterOptions iter.EntryIteratorOptions
 
 	cur        logproto.Entry
-	currLabels log.LabelsResult
+	currLabels log.GroupedLabelsResult
 }
 
 func (e *entryBufferedIterator) Entry() logproto.Entry {
 	return e.cur
 }
 
-func (e *entryBufferedIterator) Labels() string { return e.currLabels.String() }
+func (e *entryBufferedIterator) Labels() string {
+	return e.currLabels.String()
+}
 
 func (e *entryBufferedIterator) GroupedLabels() logproto.GroupedLabels {
 	return logproto.GroupedLabels{
-		Stream:             logproto.FromLabelsToLabelAdapters(e.pipeline.BaseLabels().Labels()),
-		StructuredMetadata: logproto.FromLabelsToLabelAdapters(e.currNonIndexedLabels),
-		// TODO: Should contain only parsed labels not in Stream or StructuredMetadata.
-		Parsed: nil,
+		Stream:             logproto.FromLabelsToLabelAdapters(e.currLabels.Stream().Labels()),
+		StructuredMetadata: logproto.FromLabelsToLabelAdapters(e.currLabels.StructuredMetadata().Labels()),
+		Parsed:             logproto.FromLabelsToLabelAdapters(e.currLabels.Parsed().Labels()),
 	}
 }
 
@@ -1609,13 +1610,13 @@ func (e *entryBufferedIterator) StreamHash() uint64 { return e.pipeline.BaseLabe
 
 func (e *entryBufferedIterator) Next() bool {
 	for e.bufferedIterator.Next() {
-		newLine, lbs, matches := e.pipeline.Process(e.currTs, e.currLine, e.currNonIndexedLabels...)
+		newLine, groupedLabels, matches := e.pipeline.Process(e.currTs, e.currLine, e.currNonIndexedLabels...)
 		if !matches {
 			continue
 		}
 
 		e.stats.AddPostFilterLines(1)
-		e.currLabels = lbs
+		e.currLabels = groupedLabels
 		e.cur.Timestamp = time.Unix(0, e.currTs)
 		e.cur.Line = string(newLine)
 

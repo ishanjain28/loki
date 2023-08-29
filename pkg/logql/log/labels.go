@@ -44,28 +44,45 @@ func (l labelsResult) Hash() uint64 {
 	return l.h
 }
 
-type GroupedLabelsResults interface {
+type GroupedLabelsResult interface {
 	Stream() LabelsResult
 	StructuredMetadata() LabelsResult
 	Parsed() LabelsResult
+	String() string
 }
 
-type groupedLabelsResults struct {
+type groupedLabelsResult struct {
 	stream             LabelsResult
 	structuredMetadata LabelsResult
 	parsed             LabelsResult
 }
 
-func (g groupedLabelsResults) Stream() LabelsResult {
+func NewGroupedLabelsResults(stream, structuredMetadata, parsed LabelsResult) GroupedLabelsResult {
+	return &groupedLabelsResult{
+		stream:             stream,
+		structuredMetadata: structuredMetadata,
+		parsed:             parsed,
+	}
+}
+
+func (g groupedLabelsResult) Stream() LabelsResult {
 	return g.stream
 }
 
-func (g groupedLabelsResults) StructuredMetadata() LabelsResult {
+func (g groupedLabelsResult) StructuredMetadata() LabelsResult {
 	return g.structuredMetadata
 }
 
-func (g groupedLabelsResults) Parsed() LabelsResult {
+func (g groupedLabelsResult) Parsed() LabelsResult {
 	return g.parsed
+}
+
+func (g groupedLabelsResult) String() string {
+	allLabels := make(labels.Labels, 0, len(g.stream.Labels())+len(g.structuredMetadata.Labels())+len(g.parsed.Labels()))
+	allLabels = append(allLabels, g.stream.Labels()...)
+	allLabels = append(allLabels, g.structuredMetadata.Labels()...)
+	allLabels = append(allLabels, g.parsed.Labels()...)
+	return labels.New(allLabels...).String()
 }
 
 type hasher struct {
@@ -164,12 +181,127 @@ type GroupedLabelsBuilder struct {
 	Stream             *LabelsBuilder
 	StructuredMetadata *LabelsBuilder
 	Parsed             *LabelsBuilder
+
+	err        string
+	errDetails string
+
+	*BaseLabelsBuilder
 }
 
 func (g *GroupedLabelsBuilder) Reset() {
 	g.Stream.Reset()
 	g.StructuredMetadata.Reset()
 	g.Parsed.Reset()
+}
+
+func (g *GroupedLabelsBuilder) GroupedLabelsResult() GroupedLabelsResult {
+	return NewGroupedLabelsResults(g.Stream.LabelsResult(), g.StructuredMetadata.LabelsResult(), g.Parsed.LabelsResult())
+}
+
+// HasErr tells if the error label has been set.
+func (g *GroupedLabelsBuilder) HasErr() bool {
+	return g.err != ""
+}
+
+// SetErr sets the error label.
+func (g *GroupedLabelsBuilder) SetErr(err string) *GroupedLabelsBuilder {
+	g.err = err
+	return g
+}
+
+// GetErr return the current error label value.
+func (g *GroupedLabelsBuilder) GetErr() string {
+	return g.err
+}
+
+func (g *GroupedLabelsBuilder) ResetError() *GroupedLabelsBuilder {
+	g.err = ""
+	return g
+}
+
+func (g *GroupedLabelsBuilder) SetErrorDetails(desc string) *GroupedLabelsBuilder {
+	g.errDetails = desc
+	return g
+}
+
+func (g *GroupedLabelsBuilder) ResetErrorDetails() *GroupedLabelsBuilder {
+	g.errDetails = ""
+	return g
+}
+
+func (g *GroupedLabelsBuilder) GetErrorDetails() string {
+	return g.errDetails
+}
+
+// Get returns the value of a labels key if it exists.
+func (g *GroupedLabelsBuilder) Get(key string) (string, bool) {
+	if v, ok := g.Stream.Get(key); ok {
+		return v, ok
+	}
+	if v, ok := g.StructuredMetadata.Get(key); ok {
+		return v, ok
+	}
+	if v, ok := g.Parsed.Get(key); ok {
+		return v, ok
+	}
+	return "", false
+}
+
+func (g *GroupedLabelsBuilder) Set(n, v string) *GroupedLabelsBuilder {
+	if _, ok := g.Stream.Get(n); ok {
+		g.Stream.Set(n, v)
+		return g
+	}
+	if _, ok := g.StructuredMetadata.Get(n); ok {
+		g.StructuredMetadata.Set(n, v)
+		return g
+	}
+	g.Parsed.Set(n, v)
+	return g
+}
+
+func (g *GroupedLabelsBuilder) Map() map[string]string {
+	streamMap := g.Stream.Map()
+	structuredMetadataMap := g.StructuredMetadata.Map()
+	parsedMap := g.Parsed.Map()
+
+	ret := make(map[string]string, len(streamMap)+len(structuredMetadataMap)+len(parsedMap))
+	for k, v := range streamMap {
+		ret[k] = v
+	}
+	for k, v := range structuredMetadataMap {
+		ret[k] = v
+	}
+	for k, v := range parsedMap {
+		ret[k] = v
+	}
+
+	return ret
+}
+
+// Del deletes the label of the given name.
+func (g *GroupedLabelsBuilder) Del(ns ...string) *GroupedLabelsBuilder {
+	g.Stream.Del(ns...)
+	g.StructuredMetadata.Del(ns...)
+	g.Parsed.Del(ns...)
+	return g
+}
+
+func (g *GroupedLabelsBuilder) UnsortedLabels(_ labels.Labels) labels.Labels {
+	streamLabels := g.Stream.UnsortedLabels(nil)
+	structuredMetadataLabels := g.StructuredMetadata.UnsortedLabels(nil)
+	parsedLabels := g.Parsed.UnsortedLabels(nil)
+
+	ret := make(labels.Labels, 0, len(streamLabels)+len(structuredMetadataLabels)+len(parsedLabels))
+	ret = append(ret, streamLabels...)
+	ret = append(ret, structuredMetadataLabels...)
+	ret = append(ret, parsedLabels...)
+	return ret
+}
+
+// BaseHas returns the base labels have the given key
+func (g *GroupedLabelsBuilder) BaseHas(key string) bool {
+	return g.Stream.BaseHas(key)
 }
 
 // ForLabelsGrouped returns a grouped labels builder for a given labels set as base.
@@ -181,6 +313,7 @@ func (b *BaseLabelsBuilder) ForLabelsGrouped(lbs labels.Labels, hash uint64) *Gr
 		Stream:             b.ForLabels(lbs, hash),
 		StructuredMetadata: b.ForLabels(labels.Labels{}, b.Hash(labels.Labels{})),
 		Parsed:             b.ForLabels(labels.Labels{}, b.Hash(labels.Labels{})),
+		BaseLabelsBuilder:  b,
 	}
 }
 

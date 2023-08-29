@@ -82,7 +82,7 @@ func NewOrLabelFilter(left LabelFilterer, right LabelFilterer) *BinaryLabelFilte
 	}
 }
 
-func (b *BinaryLabelFilter) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (b *BinaryLabelFilter) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	line, lok := b.Left.Process(ts, line, lbs)
 	if !b.and && lok {
 		return line, true
@@ -119,7 +119,7 @@ type NoopLabelFilter struct {
 	*labels.Matcher
 }
 
-func (NoopLabelFilter) Process(_ int64, line []byte, _ *LabelsBuilder) ([]byte, bool) {
+func (NoopLabelFilter) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	return line, true
 }
 func (NoopLabelFilter) RequiredLabelNames() []string { return []string{} }
@@ -162,7 +162,7 @@ func NewBytesLabelFilter(t LabelFilterType, name string, b uint64) *BytesLabelFi
 	}
 }
 
-func (d *BytesLabelFilter) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (d *BytesLabelFilter) Process(_ int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	if lbs.HasErr() {
 		// if there's an error only the string matchers can filter it out.
 		return line, true
@@ -227,7 +227,7 @@ func NewDurationLabelFilter(t LabelFilterType, name string, d time.Duration) *Du
 	}
 }
 
-func (d *DurationLabelFilter) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (d *DurationLabelFilter) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	if lbs.HasErr() {
 		// if there's an error only the string matchers can filter out.
 		return line, true
@@ -287,7 +287,7 @@ func NewNumericLabelFilter(t LabelFilterType, name string, v float64) *NumericLa
 	}
 }
 
-func (n *NumericLabelFilter) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (n *NumericLabelFilter) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	if lbs.HasErr() {
 		// if there's an error only the string matchers can filter out.
 		return line, true
@@ -354,7 +354,7 @@ func NewStringLabelFilter(m *labels.Matcher) LabelFilterer {
 	}
 }
 
-func (s *StringLabelFilter) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (s *StringLabelFilter) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	return line, s.Matches(labelValue(s.Name, lbs))
 }
 
@@ -378,7 +378,7 @@ func (s *lineFilterLabelFilter) String() string {
 	return s.Matcher.String()
 }
 
-func (s *lineFilterLabelFilter) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (s *lineFilterLabelFilter) Process(_ int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	v := labelValue(s.Name, lbs)
 	return line, s.filter.Filter(unsafeGetBytes(v))
 }
@@ -387,7 +387,7 @@ func (s *lineFilterLabelFilter) RequiredLabelNames() []string {
 	return []string{s.Name}
 }
 
-func labelValue(name string, lbs *LabelsBuilder) string {
+func labelValue(name string, lbs *GroupedLabelsBuilder) string {
 	if name == logqlmodel.ErrorLabel {
 		return lbs.GetErr()
 	}

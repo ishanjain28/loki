@@ -15,7 +15,7 @@ func NewDistinctFilter(labels []string) (Stage, error) {
 		datas:  datas,
 	}, nil
 }
-func (r *distinctFilter) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (r *distinctFilter) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	keep := false
 	for _, label := range r.labels {
 		val, ok := lbs.Get(label)

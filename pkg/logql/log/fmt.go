@@ -216,7 +216,7 @@ func NewFormatter(tmpl string) (*LineFormatter, error) {
 	return lf, nil
 }
 
-func (lf *LineFormatter) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (lf *LineFormatter) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	lf.buf.Reset()
 	lf.currentLine = line
 	lf.currentTs = ts
@@ -376,7 +376,7 @@ func validate(fmts []LabelFmt) error {
 	return nil
 }
 
-func (lf *LabelsFormatter) Process(ts int64, l []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (lf *LabelsFormatter) Process(ts int64, l []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	lf.currentLine = l
 	lf.currentTs = ts
 
@@ -465,7 +465,7 @@ func NewDecolorizer() (*Decolorizer, error) {
 	return &Decolorizer{}, nil
 }
 
-func (Decolorizer) Process(_ int64, line []byte, _ *LabelsBuilder) ([]byte, bool) {
+func (Decolorizer) Process(ts int64, line []byte, lbs *GroupedLabelsBuilder) ([]byte, bool) {
 	return ansiRegex.ReplaceAll(line, []byte{}), true
 }
 func (Decolorizer) RequiredLabelNames() []string { return []string{} }
