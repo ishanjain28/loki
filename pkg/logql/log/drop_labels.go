@@ -57,7 +57,7 @@ func dropLabelNames(name string, lbls *LabelsBuilder) {
 		lbls.ResetErrorDetails()
 		return
 	}
-	if _, _, ok := lbls.Get(name); ok {
+	if _, ok := lbls.Get(name); ok {
 		lbls.Del(name)
 	}
 }
@@ -79,7 +79,7 @@ func dropLabelMatches(matcher *labels.Matcher, lbls *LabelsBuilder) {
 		}
 		return
 	}
-	value, _, _ = lbls.Get(name)
+	value, _ = lbls.Get(name)
 	if matcher.Matches(value) {
 		lbls.Del(name)
 	}

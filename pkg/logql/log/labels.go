@@ -280,7 +280,7 @@ func (b *LabelsBuilder) BaseHas(key string) bool {
 }
 
 // Get returns the value of a labels key if it exists.
-func (b *LabelsBuilder) Get(key string) (string, LabelCategory, bool) {
+func (b *LabelsBuilder) get(key string) (string, LabelCategory, bool) {
 	for _, a := range b.add {
 		if a.Name == key {
 			return a.Value, a.Category, true
@@ -298,6 +298,15 @@ func (b *LabelsBuilder) Get(key string) (string, LabelCategory, bool) {
 		}
 	}
 	return "", InvalidCategory, false
+}
+
+func (b *LabelsBuilder) Get(key string) (string, bool) {
+	v, _, ok := b.get(key)
+	return v, ok
+}
+
+func (b *LabelsBuilder) GetWithCategory(key string) (string, LabelCategory, bool) {
+	return b.get(key)
 }
 
 // Del deletes the label of the given name.

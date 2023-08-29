@@ -252,7 +252,7 @@ func (p *stubStreamPipeline) Process(_ int64, _ []byte, _ ...labels.Label) ([]by
 	return nil, nil, true
 }
 
-func (p *stubStreamPipeline) ProcessString(ts int64, line string, nonIndexedLabels ...labels.Label) (string, CategorizedLabelsResult, bool) {
+func (p *stubStreamPipeline) ProcessString(_ int64, _ string, _ ...labels.Label) (string, CategorizedLabelsResult, bool) {
 	return "", nil, true
 }
 

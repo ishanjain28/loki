@@ -182,7 +182,7 @@ func (l *streamLabelSampleExtractor) Process(ts int64, line []byte, nonIndexedLa
 	}
 	// convert the label value.
 	var v float64
-	stringValue, _, _ := l.builder.Get(l.labelName)
+	stringValue, _ := l.builder.Get(l.labelName)
 	if stringValue == "" {
 		// NOTE: It's totally fine for log line to not have this particular label.
 		// See Issue: https://github.com/grafana/loki/issues/6713
@@ -208,9 +208,7 @@ func (l *streamLabelSampleExtractor) ProcessString(ts int64, line string, nonInd
 	return l.Process(ts, unsafeGetBytes(line), nonIndexedLabels...)
 }
 
-func (l *streamLabelSampleExtractor) BaseLabels() LabelsResult {
-	return l.builder.currentResult
-}
+func (l *streamLabelSampleExtractor) BaseLabels() LabelsResult { return l.builder.currentResult }
 
 // NewFilteringSampleExtractor creates a sample extractor where entries from
 // the underlying log stream are filtered by pipeline filters before being

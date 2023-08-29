@@ -250,7 +250,7 @@ func NewRegexpParser(re string) (*RegexpParser, error) {
 	}, nil
 }
 
-func (r *RegexpParser) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (r *RegexpParser) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	parserHints := lbs.ParserLabelHints()
 	for i, value := range r.regex.FindSubmatch(line) {
 		if name, ok := r.nameIndex[i]; ok {
@@ -301,7 +301,7 @@ func NewLogfmtParser(strict, keepEmpty bool) *LogfmtParser {
 	}
 }
 
-func (l *LogfmtParser) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (l *LogfmtParser) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	parserHints := lbs.ParserLabelHints()
 	if parserHints.NoLabels() {
 		return line, true
@@ -393,7 +393,7 @@ func NewPatternParser(pn string) (*PatternParser, error) {
 	}, nil
 }
 
-func (l *PatternParser) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (l *PatternParser) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	parserHints := lbs.ParserLabelHints()
 	if parserHints.NoLabels() {
 		return line, true
@@ -452,7 +452,7 @@ func NewLogfmtExpressionParser(expressions []LabelExtractionExpr, strict bool) (
 	}, nil
 }
 
-func (l *LogfmtExpressionParser) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (l *LogfmtExpressionParser) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	// If there are no expressions, extract common labels
 	// and add the suffix "_extracted"
 	if len(l.expressions) == 0 {
@@ -624,7 +624,7 @@ func (j *JSONExpressionParser) Process(_ int64, line []byte, lbs *LabelsBuilder)
 	// Ensure there's a label for every value
 	if matches < len(j.ids) {
 		for _, id := range j.ids {
-			if _, _, ok := lbs.Get(id); !ok {
+			if _, ok := lbs.Get(id); !ok {
 				lbs.Set(ParsedLabel, id, "")
 			}
 		}
@@ -663,7 +663,7 @@ func NewUnpackParser() *UnpackParser {
 
 func (UnpackParser) RequiredLabelNames() []string { return []string{} }
 
-func (u *UnpackParser) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (u *UnpackParser) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	if len(line) == 0 || lbs.ParserLabelHints().NoLabels() {
 		return line, true
 	}

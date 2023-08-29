@@ -167,7 +167,7 @@ func (d *BytesLabelFilter) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]
 		// if there's an error only the string matchers can filter it out.
 		return line, true
 	}
-	v, _, ok := lbs.Get(d.Name)
+	v, ok := lbs.Get(d.Name)
 	if !ok {
 		// we have not found this label.
 		return line, false
@@ -227,12 +227,12 @@ func NewDurationLabelFilter(t LabelFilterType, name string, d time.Duration) *Du
 	}
 }
 
-func (d *DurationLabelFilter) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (d *DurationLabelFilter) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	if lbs.HasErr() {
 		// if there's an error only the string matchers can filter out.
 		return line, true
 	}
-	v, _, ok := lbs.Get(d.Name)
+	v, ok := lbs.Get(d.Name)
 	if !ok {
 		// we have not found this label.
 		return line, false
@@ -287,12 +287,12 @@ func NewNumericLabelFilter(t LabelFilterType, name string, v float64) *NumericLa
 	}
 }
 
-func (n *NumericLabelFilter) Process(ts int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+func (n *NumericLabelFilter) Process(_ int64, line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	if lbs.HasErr() {
 		// if there's an error only the string matchers can filter out.
 		return line, true
 	}
-	v, _, ok := lbs.Get(n.Name)
+	v, ok := lbs.Get(n.Name)
 	if !ok {
 		// we have not found this label.
 		return line, false
@@ -391,6 +391,6 @@ func labelValue(name string, lbs *LabelsBuilder) string {
 	if name == logqlmodel.ErrorLabel {
 		return lbs.GetErr()
 	}
-	v, _, _ := lbs.Get(name)
+	v, _ := lbs.Get(name)
 	return v
 }
