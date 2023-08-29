@@ -67,6 +67,7 @@ type Config struct {
 	QueryReadyNumDays        int                                    `yaml:"query_ready_num_days"`
 	IndexGatewayClientConfig gatewayclient.IndexGatewayClientConfig `yaml:"index_gateway_client"`
 	UseBoltDBShipperAsBackup bool                                   `yaml:"use_boltdb_shipper_as_backup"`
+	Parallelism              int                                    `yaml:"parallelism"`
 
 	IngesterName           string
 	Mode                   Mode
@@ -89,6 +90,7 @@ func (cfg *Config) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.ResyncInterval, prefix+"shipper.resync-interval", 5*time.Minute, "Resync downloaded files with the storage")
 	f.IntVar(&cfg.QueryReadyNumDays, prefix+"shipper.query-ready-num-days", 0, "Number of days of common index to be kept downloaded for queries. For per tenant index query readiness, use limits overrides config.")
 	f.BoolVar(&cfg.UseBoltDBShipperAsBackup, prefix+"shipper.use-boltdb-shipper-as-backup", false, "Use boltdb-shipper index store as backup for indexing chunks. When enabled, boltdb-shipper needs to be configured under storage_config")
+	f.IntVar(&cfg.Parallelism, prefix+"shipper.parallelism", 50, "Max number of parallelism for underlying operations. Recommended 2*available cpus.")
 }
 
 func (cfg *Config) Validate() error {
@@ -226,7 +228,7 @@ func (s *indexShipper) ForEach(ctx context.Context, tableName, userID string, ca
 func (s *indexShipper) ForEachConcurrent(ctx context.Context, tableName, userID string, callback index.ForEachIndexCallback) error {
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(100)
+	g.SetLimit(s.cfg.Parallelism)
 
 	if s.downloadsManager != nil {
 		g.Go(func() error {

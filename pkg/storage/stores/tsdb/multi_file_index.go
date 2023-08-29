@@ -26,14 +26,14 @@ type IndexIter interface {
 	// Lazy iteration may touch different index files within the same index query.
 	// `For` e.g, Bounds and GetChunkRefs might go through different index files
 	// if a sync happened between the calls.
-	For(context.Context, func(context.Context, Index) error) error
+	For(context.Context, int, func(context.Context, Index) error) error
 }
 
 type IndexSlice []Index
 
-func (xs IndexSlice) For(ctx context.Context, fn func(context.Context, Index) error) error {
+func (xs IndexSlice) For(ctx context.Context, parallelism int, fn func(context.Context, Index) error) error {
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(100)
+	g.SetLimit(parallelism)
 	for i := range xs {
 		x := xs[i]
 		g.Go(func() error {
@@ -91,7 +91,7 @@ func (i *MultiIndex) Close() error {
 func (i *MultiIndex) forMatchingIndices(ctx context.Context, from, through model.Time, f func(context.Context, Index) error) error {
 	queryBounds := newBounds(from, through)
 
-	return i.iter.For(ctx, func(ctx context.Context, idx Index) error {
+	return i.iter.For(ctx, 50, func(ctx context.Context, idx Index) error {
 		if Overlap(queryBounds, idx) {
 
 			if i.filterer != nil {
